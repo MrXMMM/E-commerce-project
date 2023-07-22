@@ -17,6 +17,7 @@ import (
 type IModuleFactory interface {
 	MonitorModule()
 	UsersModule()
+	AppinfoModule()
 }
 
 type moduleFactory struct {
@@ -54,10 +55,10 @@ func (m *moduleFactory) UsersModule() {
 
 	router := m.router.Group("/users")
 
-	router.Post("/signup", handler.SignUpCustomer)
-	router.Post("/signin", handler.SignIn)
-	router.Post("/refresh", handler.RefreshPassport)
-	router.Post("/signout", handler.SignOut)
+	router.Post("/signup", m.mid.ApiKeyAuth(), handler.SignUpCustomer)
+	router.Post("/signin", m.mid.ApiKeyAuth(), handler.SignIn)
+	router.Post("/refresh", m.mid.ApiKeyAuth(), handler.RefreshPassport)
+	router.Post("/signout", m.mid.ApiKeyAuth(), handler.SignOut)
 	router.Post("/admin/signup", m.mid.Authorize(2), handler.SignUpAdmin)
 
 	router.Get("/:userid", m.mid.JwtAuth(), m.mid.ParamsCheck(), handler.GetUserProfile)
@@ -74,7 +75,11 @@ func (m *moduleFactory) AppinfoModule() {
 	handler := appinfohandlers.AppinfoHandler(m.server.cfg, usecase)
 
 	router := m.router.Group("/appinfo")
-	_ = router
-	_ = handler
 
+	router.Post("/categories", m.mid.JwtAuth(), m.mid.Authorize(2), handler.AddCategory)
+
+	router.Get("/categories", m.mid.ApiKeyAuth(), handler.FindCategory)
+	router.Get("/apikey", m.mid.JwtAuth(), m.mid.Authorize(2), handler.GenerateApiKey)
+
+	router.Delete("/:category_id/category", m.mid.JwtAuth(), m.mid.Authorize(2), handler.RemoveCategory)
 }
