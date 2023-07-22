@@ -1,6 +1,9 @@
 package servers
 
 import (
+	appinfohandlers "github.com/MrXMMM/E-commerce-Project/modules/appinfo/appinfoHandlers"
+	appinforepositories "github.com/MrXMMM/E-commerce-Project/modules/appinfo/appinfoRepositories"
+	appinfousecases "github.com/MrXMMM/E-commerce-Project/modules/appinfo/appinfoUsecases"
 	middlewareshandlers "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresHandlers"
 	middlewaresrepositories "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresRepositories"
 	middlewaresusecases "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresUsecases"
@@ -63,4 +66,15 @@ func (m *moduleFactory) UsersModule() {
 	// Initial admin 1 person in db (SQL script)
 	// Generate Admin Key
 	// Everytime using insert admin. It need to send the admin key by middleware
+}
+
+func (m *moduleFactory) AppinfoModule() {
+	repository := appinforepositories.AppinfoRepository(m.server.db)
+	usecase := appinfousecases.AppinfoUsecase(repository)
+	handler := appinfohandlers.AppinfoHandler(m.server.cfg, usecase)
+
+	router := m.router.Group("/appinfo")
+	_ = router
+	_ = handler
+
 }
