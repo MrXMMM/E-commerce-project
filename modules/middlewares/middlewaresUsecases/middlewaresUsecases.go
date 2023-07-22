@@ -1,8 +1,13 @@
 package middlewaresusecases
 
-import middlewaresrepositories "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresRepositories"
+import (
+	"github.com/MrXMMM/E-commerce-Project/modules/middlewares"
+	middlewaresrepositories "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresRepositories"
+)
 
 type IMiddlewaresUsecase interface {
+	FindAccessToken(userId, accessToken string) bool
+	FindRole() ([]*middlewares.Role, error)
 }
 
 type middlewaresUsecase struct {
@@ -13,4 +18,16 @@ func MiddlewaresUsecase(middlewaresRepository middlewaresrepositories.IMiddlewar
 	return &middlewaresUsecase{
 		middlewaresRepository: middlewaresRepository,
 	}
+}
+
+func (u *middlewaresUsecase) FindAccessToken(userId, accessToken string) bool {
+	return u.middlewaresRepository.FindAccessToken(userId, accessToken)
+}
+
+func (u *middlewaresUsecase) FindRole() ([]*middlewares.Role, error) {
+	roles, err := u.middlewaresRepository.FindRole()
+	if err != nil {
+		return nil, err
+	}
+	return roles, nil
 }

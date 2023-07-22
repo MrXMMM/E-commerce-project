@@ -1,9 +1,13 @@
 package middlewareshandlers
 
 import (
+	"strings"
+
 	"github.com/MrXMMM/E-commerce-Project/config"
 	"github.com/MrXMMM/E-commerce-Project/modules/entities"
 	middlewaresusecases "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresUsecases"
+	"github.com/MrXMMM/E-commerce-Project/pkg/auth"
+	"github.com/MrXMMM/E-commerce-Project/pkg/util"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -13,12 +17,18 @@ type middlewareHandlerErrCode string
 
 const (
 	routerCheckErr middlewareHandlerErrCode = "middleware-001"
+	jwtAuthErr     middlewareHandlerErrCode = "middleware-002"
+	paramsCheckErr middlewareHandlerErrCode = "middleware-003"
+	authorizeErr   middlewareHandlerErrCode = "middleware-004"
 )
 
 type IMiddlewaresHandler interface {
 	Cors() fiber.Handler
 	RouterCheck() fiber.Handler
 	Logger() fiber.Handler
+	JwtAuth() fiber.Handler
+	ParamsCheck() fiber.Handler
+	Authorize(expectRole ...int) fiber.Handler
 }
 
 type middlewaresHandler struct {
@@ -61,4 +71,89 @@ func (h *middlewaresHandler) Logger() fiber.Handler {
 		TimeFormat: "02/01/2006",
 		TimeZone:   "Bangkok/Asia",
 	})
+}
+
+func (h *middlewaresHandler) JwtAuth() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		token := strings.TrimPrefix(c.Get("Authorization"), "Bearer ")
+		result, err := auth.ParseToken(h.cfg.Jwt(), token)
+		if err != nil {
+			return entities.NewResponse(c).Error(
+				fiber.ErrUnauthorized.Code,
+				string(jwtAuthErr),
+				err.Error(),
+			).Res()
+		}
+
+		claims := result.Claims
+		if !h.middlewaresUseCase.FindAccessToken(claims.Id, token) {
+			return entities.NewResponse(c).Error(
+				fiber.ErrUnauthorized.Code,
+				string(jwtAuthErr),
+				"no permission to access",
+			).Res()
+		}
+
+		// Set UserId
+		c.Locals("userId", claims.Id)
+		c.Locals("user_roleId", claims.RoleId)
+		return c.Next()
+	}
+}
+
+func (h *middlewaresHandler) ParamsCheck() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userId := c.Locals("userId")
+		if c.Params("userid") != userId {
+			return entities.NewResponse(c).Error(
+				fiber.ErrUnauthorized.Code,
+				string(paramsCheckErr),
+				"never will never walk alone",
+			).Res()
+		}
+		return c.Next()
+	}
+}
+
+func (h *middlewaresHandler) Authorize(expectRole ...int) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		userRoleId, ok := c.Locals("user_roleId").(int)
+		if !ok {
+			return entities.NewResponse(c).Error(
+				fiber.ErrUnauthorized.Code,
+				string(authorizeErr),
+				"user_id is not int type",
+			).Res()
+		}
+
+		roles, err := h.middlewaresUseCase.FindRole()
+		if err != nil {
+			return entities.NewResponse(c).Error(
+				fiber.ErrInternalServerError.Code,
+				string(authorizeErr),
+				err.Error(),
+			).Res()
+		}
+
+		sum := 0
+		for _, v := range expectRole {
+			sum += v
+		}
+
+		expectedValueBinary := util.BinaryConverter(sum, len(roles))
+		userValueBinary := util.BinaryConverter(userRoleId, len(roles))
+
+		for i := range userValueBinary {
+			if userValueBinary[i]&expectedValueBinary[i] == 1 {
+				return c.Next()
+			}
+		}
+
+		return entities.NewResponse(c).Error(
+			fiber.ErrUnauthorized.Code,
+			string(authorizeErr),
+			"this role is not permission for this api",
+		).Res()
+
+	}
 }
