@@ -10,6 +10,9 @@ import (
 	middlewaresrepositories "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresRepositories"
 	middlewaresusecases "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresUsecases"
 	"github.com/MrXMMM/E-commerce-Project/modules/monitor/monitorHandlers"
+	ordershandlers "github.com/MrXMMM/E-commerce-Project/modules/orders/ordersHandlers"
+	ordersrepositories "github.com/MrXMMM/E-commerce-Project/modules/orders/ordersRepositories"
+	ordersusecases "github.com/MrXMMM/E-commerce-Project/modules/orders/ordersUsecases"
 	productshandlers "github.com/MrXMMM/E-commerce-Project/modules/products/productsHandlers"
 	productsrepositories "github.com/MrXMMM/E-commerce-Project/modules/products/productsRepositories"
 	productsusecases "github.com/MrXMMM/E-commerce-Project/modules/products/productsUsecases"
@@ -25,6 +28,7 @@ type IModuleFactory interface {
 	AppinfoModule()
 	FilesModule()
 	ProductsModule()
+	OrdersModule()
 }
 
 type moduleFactory struct {
@@ -119,4 +123,22 @@ func (m *moduleFactory) ProductsModule() {
 
 	router.Delete("/:product_id", m.mid.JwtAuth(), m.mid.Authorize(2), handler.DeleteProduct)
 
+}
+
+func (m *moduleFactory) OrdersModule() {
+	fileUsecase := filesusecases.FileUsecase(m.server.cfg)
+	productsRepository := productsrepositories.ProductsRepository(m.server.db, m.server.cfg, fileUsecase)
+
+	ordersRepository := ordersrepositories.OrdersRepository(m.server.db)
+	ordersUsecase := ordersusecases.OrdersUsecase(ordersRepository, productsRepository)
+	ordersHandler := ordershandlers.OrdersHandler(m.server.cfg, ordersUsecase)
+
+	router := m.router.Group("/orders")
+
+	router.Get("/:userid/:order_id", m.mid.JwtAuth(), m.mid.ParamsCheck(), ordersHandler.FindOneOrder)
+	router.Get("/", m.mid.JwtAuth(), m.mid.Authorize(2), ordersHandler.FindOrder)
+
+	router.Post("/", m.mid.JwtAuth(), ordersHandler.InsertOrder)
+
+	router.Patch("/:userid/:order_id", m.mid.JwtAuth(), m.mid.ParamsCheck(), ordersHandler.UpdateOrder)
 }
