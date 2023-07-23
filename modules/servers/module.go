@@ -4,10 +4,18 @@ import (
 	appinfohandlers "github.com/MrXMMM/E-commerce-Project/modules/appinfo/appinfoHandlers"
 	appinforepositories "github.com/MrXMMM/E-commerce-Project/modules/appinfo/appinfoRepositories"
 	appinfousecases "github.com/MrXMMM/E-commerce-Project/modules/appinfo/appinfoUsecases"
+	fileshandlers "github.com/MrXMMM/E-commerce-Project/modules/files/filesHandlers"
+	filesusecases "github.com/MrXMMM/E-commerce-Project/modules/files/filesUsecases"
 	middlewareshandlers "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresHandlers"
 	middlewaresrepositories "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresRepositories"
 	middlewaresusecases "github.com/MrXMMM/E-commerce-Project/modules/middlewares/middlewaresUsecases"
 	"github.com/MrXMMM/E-commerce-Project/modules/monitor/monitorHandlers"
+	ordershandlers "github.com/MrXMMM/E-commerce-Project/modules/orders/ordersHandlers"
+	ordersrepositories "github.com/MrXMMM/E-commerce-Project/modules/orders/ordersRepositories"
+	ordersusecases "github.com/MrXMMM/E-commerce-Project/modules/orders/ordersUsecases"
+	productshandlers "github.com/MrXMMM/E-commerce-Project/modules/products/productsHandlers"
+	productsrepositories "github.com/MrXMMM/E-commerce-Project/modules/products/productsRepositories"
+	productsusecases "github.com/MrXMMM/E-commerce-Project/modules/products/productsUsecases"
 	usershandlers "github.com/MrXMMM/E-commerce-Project/modules/users/usersHandlers"
 	usersrepositories "github.com/MrXMMM/E-commerce-Project/modules/users/usersRepositories"
 	usersusecases "github.com/MrXMMM/E-commerce-Project/modules/users/usersUsecases"
@@ -18,6 +26,9 @@ type IModuleFactory interface {
 	MonitorModule()
 	UsersModule()
 	AppinfoModule()
+	FilesModule()
+	ProductsModule()
+	OrdersModule()
 }
 
 type moduleFactory struct {
@@ -82,4 +93,52 @@ func (m *moduleFactory) AppinfoModule() {
 	router.Get("/apikey", m.mid.JwtAuth(), m.mid.Authorize(2), handler.GenerateApiKey)
 
 	router.Delete("/:category_id/category", m.mid.JwtAuth(), m.mid.Authorize(2), handler.RemoveCategory)
+}
+
+func (m *moduleFactory) FilesModule() {
+	usecase := filesusecases.FileUsecase(m.server.cfg)
+	handler := fileshandlers.FilesHandler(m.server.cfg, usecase)
+
+	router := m.router.Group("/files")
+
+	router.Post("/upload", m.mid.JwtAuth(), m.mid.Authorize(2), handler.UploadFiles)
+	router.Patch("/delete", m.mid.JwtAuth(), m.mid.Authorize(2), handler.DeleteFile)
+}
+
+func (m *moduleFactory) ProductsModule() {
+	fileUsecase := filesusecases.FileUsecase(m.server.cfg)
+
+	repository := productsrepositories.ProductsRepository(m.server.db, m.server.cfg, fileUsecase)
+	usecase := productsusecases.ProductsUsecase(repository)
+	handler := productshandlers.ProductHandler(m.server.cfg, usecase, fileUsecase)
+
+	router := m.router.Group("/products")
+
+	router.Get("/", m.mid.ApiKeyAuth(), handler.FindProduct)
+	router.Get("/:product_id", m.mid.ApiKeyAuth(), handler.FindOneProduct)
+
+	router.Post("/", m.mid.JwtAuth(), m.mid.Authorize(2), handler.AddProduct)
+
+	router.Patch("/:product_id", m.mid.JwtAuth(), m.mid.Authorize(2), handler.UpdateProduct)
+
+	router.Delete("/:product_id", m.mid.JwtAuth(), m.mid.Authorize(2), handler.DeleteProduct)
+
+}
+
+func (m *moduleFactory) OrdersModule() {
+	fileUsecase := filesusecases.FileUsecase(m.server.cfg)
+	productsRepository := productsrepositories.ProductsRepository(m.server.db, m.server.cfg, fileUsecase)
+
+	ordersRepository := ordersrepositories.OrdersRepository(m.server.db)
+	ordersUsecase := ordersusecases.OrdersUsecase(ordersRepository, productsRepository)
+	ordersHandler := ordershandlers.OrdersHandler(m.server.cfg, ordersUsecase)
+
+	router := m.router.Group("/orders")
+
+	router.Get("/:userid/:order_id", m.mid.JwtAuth(), m.mid.ParamsCheck(), ordersHandler.FindOneOrder)
+	router.Get("/", m.mid.JwtAuth(), m.mid.Authorize(2), ordersHandler.FindOrder)
+
+	router.Post("/", m.mid.JwtAuth(), ordersHandler.InsertOrder)
+
+	router.Patch("/:userid/:order_id", m.mid.JwtAuth(), m.mid.ParamsCheck(), ordersHandler.UpdateOrder)
 }

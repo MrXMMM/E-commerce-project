@@ -98,7 +98,7 @@ func (h *middlewaresHandler) JwtAuth() fiber.Handler {
 
 		// Set UserId
 		c.Locals("userId", claims.Id)
-		c.Locals("user_roleId", claims.RoleId)
+		c.Locals("userRoleId", claims.RoleId)
 		return c.Next()
 	}
 }
@@ -106,11 +106,14 @@ func (h *middlewaresHandler) JwtAuth() fiber.Handler {
 func (h *middlewaresHandler) ParamsCheck() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		userId := c.Locals("userId")
+		if c.Locals("userRoleId").(int) == 2 {
+			return c.Next()
+		}
 		if c.Params("userid") != userId {
 			return entities.NewResponse(c).Error(
 				fiber.ErrUnauthorized.Code,
 				string(paramsCheckErr),
-				"never will never walk alone",
+				"You not have an access to view this",
 			).Res()
 		}
 		return c.Next()
